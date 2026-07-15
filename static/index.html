@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<title>SOP Agentic RAG</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+  h1 { font-size: 1.3rem; }
+  h2 { font-size: 1rem; opacity: 0.85; }
+  section { border: 1px solid #8884; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  input, textarea, button, select { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #8886; }
+  input, textarea { width: 100%; box-sizing: border-box; margin-bottom: 8px; }
+  button { cursor: pointer; background: #2563eb; color: white; border: none; padding: 8px 16px; }
+  button:disabled { background: #888; cursor: not-allowed; }
+  button.secondary { background: #6b7280; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row > * { flex: 1; }
+  .hidden { display: none !important; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab { flex: 1; text-align: center; padding: 10px; border-radius: 6px; background: #8882; cursor: pointer; user-select: none; }
+  .tab.active { background: #2563eb; color: white; }
+
+  #docList { list-style: none; padding: 0; font-size: 0.9rem; }
+  #docList li { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #8882; }
+  #docList li input[type=checkbox] { width: auto; margin: 0; }
+  .status-ready { color: #16a34a; }
+  .status-processing { color: #d97706; }
+  .status-failed { color: #dc2626; }
+
+  #chatLog { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; max-height: 55vh; overflow-y: auto; }
+  .msg { padding: 10px 12px; border-radius: 8px; max-width: 88%; white-space: pre-wrap; }
+  .msg.user { align-self: flex-end; background: #2563eb22; }
+  .msg.assistant { align-self: flex-start; background: #8884; }
+  .sources { font-size: 0.8rem; opacity: 0.75; margin-top: 6px; }
+  .sources details { margin-top: 4px; }
+  .tool-trace { font-size: 0.8rem; opacity: 0.8; margin-bottom: 6px; }
+  .tool-trace .tool-badge { display: inline-block; background: #7c3aed22; border: 1px solid #7c3aed55; border-radius: 4px; padding: 1px 6px; margin-right: 4px; font-family: ui-monospace, monospace; }
+  .tool-trace details { margin-top: 2px; }
+
+  #status { font-size: 0.85rem; opacity: 0.7; min-height: 1.2em; }
+  #error { color: #dc2626; font-size: 0.85rem; min-height: 1.2em; }
+</style>
+</head>
+<body>
+
+<h1>SOP Agentic RAG — 测试面板</h1>
+<div id="error"></div>
+
+<section id="authSection">
+  <h2>1. 登录 / 注册</h2>
+  <input id="email" placeholder="email" value="you@example.com" />
+  <input id="password" type="password" placeholder="password" value="MyPass123!" />
+  <input id="username" placeholder="username (仅注册时需要)" value="tester" />
+  <div class="row">
+    <button onclick="register()">注册</button>
+    <button class="secondary" onclick="login()">登录（已注册过就用这个）</button>
+  </div>
+</section>
+
+<section id="appSection" class="hidden">
+  <div class="tabs">
+    <div class="tab active" id="tabRag" onclick="switchMode('rag')">SOP RAG（固定检索流程）</div>
+    <div class="tab" id="tabHarness" onclick="switchMode('harness')">Tool Harness（模型自主调用工具）</div>
+  </div>
+
+  <div id="ragSection">
+    <h2>上传 SOP 文档（PDF / DOCX / TXT / MD）</h2>
+    <input type="file" id="fileInput" accept=".pdf,.docx,.txt,.md" />
+    <button onclick="uploadDoc()">上传</button>
+    <p id="status"></p>
+    <ul id="docList"></ul>
+    <div class="row">
+      <button class="secondary" onclick="refreshDocs()">刷新文档列表</button>
+    </div>
+    <p style="font-size:0.8rem; opacity:0.7">勾选文档可限定只在这些文档里检索；都不勾选=检索全部。</p>
+  </div>
+
+  <div id="harnessSection" class="hidden">
+    <p style="font-size:0.85rem; opacity:0.75">
+      这个模式下模型自己决定要不要调用工具、调用哪个——知识库检索（同一份数据）、查当前时间（真实外部API调用）、
+      读/搜这个项目自己的代码（沙箱限制在项目目录内，只读）。可以直接问"现在几点"、"反应釜清洁用什么试剂"、
+      "app/main.py 里有几个中间件"对比着试。
+    </p>
+  </div>
+
+  <h2 style="margin-top:24px">提问</h2>
+  <div id="chatLog"></div>
+  <div class="row">
+    <input id="question" placeholder="问点什么…" onkeydown="if(event.key==='Enter') ask()" />
+    <button id="askBtn" onclick="ask()">发送</button>
+  </div>
+</section>
+
+<script>
+const API = "/api/v1";
+let userToken = null, sessionToken = null;
+let mode = "rag";
+
+function showError(msg) { document.getElementById("error").textContent = msg || ""; }
+
+async function api(path, opts = {}, token) {
+  const headers = opts.headers || {};
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const res = await fetch(API + path, { ...opts, headers });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail ? JSON.stringify(data.detail) : res.statusText);
+  return data;
+}
+
+function switchMode(m) {
+  mode = m;
+  document.getElementById("tabRag").classList.toggle("active", m === "rag");
+  document.getElementById("tabHarness").classList.toggle("active", m === "harness");
+  document.getElementById("ragSection").classList.toggle("hidden", m !== "rag");
+  document.getElementById("harnessSection").classList.toggle("hidden", m !== "harness");
+  document.getElementById("chatLog").innerHTML = "";
+  if (m === "rag") loadHistory();
+}
+
+async function register() {
+  showError("");
+  try {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    const username = document.getElementById("username").value;
+    const data = await api("/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, username }),
+    });
+    await afterAuth(data.token.access_token);
+  } catch (e) { showError("注册失败: " + e.message); }
+}
+
+async function login() {
+  showError("");
+  try {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    const form = new URLSearchParams({ email, password, grant_type: "password" });
+    const res = await fetch(API + "/auth/login", { method: "POST", body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    await afterAuth(data.access_token);
+  } catch (e) { showError("登录失败: " + e.message); }
+}
+
+async function afterAuth(token) {
+  userToken = token;
+  const session = await api("/auth/session", { method: "POST" }, userToken);
+  sessionToken = session.token.access_token;
+  document.getElementById("authSection").classList.add("hidden");
+  document.getElementById("appSection").classList.remove("hidden");
+  refreshDocs();
+  loadHistory();
+}
+
+async function uploadDoc() {
+  showError("");
+  const file = document.getElementById("fileInput").files[0];
+  if (!file) return showError("先选一个文件（PDF/DOCX/TXT/MD）");
+  const form = new FormData();
+  form.append("file", file);
+  document.getElementById("status").textContent = "上传中…";
+  try {
+    await api("/documents/upload", { method: "POST", body: form }, sessionToken);
+    document.getElementById("status").textContent = "上传成功，后台解析中…";
+    pollDocs();
+  } catch (e) { showError("上传失败: " + e.message); }
+}
+
+function getSelectedDocumentIds() {
+  return Array.from(document.querySelectorAll("#docList input[type=checkbox]:checked")).map(el => el.value);
+}
+
+async function refreshDocs() {
+  try {
+    const docs = await api("/documents", {}, sessionToken);
+    const previouslyChecked = new Set(getSelectedDocumentIds());
+    const list = document.getElementById("docList");
+    list.innerHTML = "";
+    for (const d of docs) {
+      const li = document.createElement("li");
+      const checked = previouslyChecked.has(d.document_id) ? "checked" : "";
+      li.innerHTML = `<input type="checkbox" value="${d.document_id}" ${checked} />` +
+        `<span>${d.filename} — <span class="status-${d.status}">${d.status}</span>` +
+        (d.status === "ready" ? ` (${d.chunk_count} chunks)` : "") +
+        (d.error ? ` — ${d.error}` : "") + `</span>`;
+      list.appendChild(li);
+    }
+    return docs.some(d => d.status === "processing");
+  } catch (e) { showError("获取文档列表失败: " + e.message); return false; }
+}
+
+// Keeps polling every 3s as long as anything is still "processing" — large
+// documents embed on CPU and can take well over a minute, so there's no fixed
+// attempt cap; a 10-minute wall-clock ceiling just guards against a stuck
+// background task looping forever.
+function pollDocs(deadline = Date.now() + 10 * 60 * 1000) {
+  refreshDocs().then(stillProcessing => {
+    if (stillProcessing && Date.now() < deadline) {
+      document.getElementById("status").textContent = "解析中…（大文档可能要一两分钟，页面会自动刷新)";
+      setTimeout(() => pollDocs(deadline), 3000);
+    } else if (stillProcessing) {
+      document.getElementById("status").textContent = "解析时间较长，请手动点“刷新文档列表”查看最新状态";
+    } else {
+      document.getElementById("status").textContent = "";
+    }
+  });
+}
+
+function dedupSources(sources) {
+  const uniq = [], seen = new Set();
+  for (const s of sources || []) {
+    const key = s.filename + s.page;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniq.push(s);
+  }
+  return uniq;
+}
+
+function renderMessage(role, content, sources) {
+  const log = document.getElementById("chatLog");
+  const div = document.createElement("div");
+  div.className = "msg " + role;
+  const textNode = document.createElement("span");
+  textNode.textContent = content;
+  div.appendChild(textNode);
+
+  const uniq = dedupSources(sources);
+  if (uniq.length) {
+    const det = document.createElement("details");
+    det.className = "sources";
+    det.innerHTML = `<summary>${uniq.length} 个引用来源</summary>` +
+      uniq.map(s => `<div>[${s.filename} p.${s.page}] ${s.content.slice(0, 120)}...</div>`).join("");
+    div.appendChild(det);
+  }
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  return textNode;
+}
+
+function renderToolTrace(toolCalls) {
+  if (!toolCalls || !toolCalls.length) return;
+  const log = document.getElementById("chatLog");
+  const div = document.createElement("div");
+  div.className = "tool-trace";
+  div.innerHTML = toolCalls.map(tc => {
+    const argsStr = JSON.stringify(tc.args);
+    return `<details><summary><span class="tool-badge">${tc.tool}</span>${argsStr}</summary>` +
+      `<div style="margin-top:4px; opacity:0.8">${(tc.result || "").slice(0, 300)}</div></details>`;
+  }).join("");
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function loadHistory() {
+  try {
+    const data = await api("/chatbot/history", {}, sessionToken);
+    document.getElementById("chatLog").innerHTML = "";
+    for (const m of data.messages) renderMessage(m.role, m.content);
+  } catch (e) { showError("加载历史失败: " + e.message); }
+}
+
+async function ask() {
+  showError("");
+  const input = document.getElementById("question");
+  const question = input.value.trim();
+  if (!question) return;
+  input.value = "";
+  renderMessage("user", question);
+
+  const askBtn = document.getElementById("askBtn");
+  askBtn.disabled = true;
+  try {
+    if (mode === "rag") await askRagStreaming(question);
+    else await askHarness(question);
+  } catch (e) {
+    showError("提问失败: " + e.message);
+  } finally {
+    askBtn.disabled = false;
+  }
+}
+
+async function askRagStreaming(question) {
+  const documentIds = getSelectedDocumentIds();
+  const body = JSON.stringify({
+    messages: [{ role: "user", content: question }],
+    document_ids: documentIds.length ? documentIds : null,
+  });
+  const res = await fetch(API + "/chatbot/chat/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + sessionToken },
+    body,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || res.statusText);
+  }
+
+  const textNode = renderMessage("assistant", "", null);
+  const chatLog = document.getElementById("chatLog");
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "", fullText = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop();
+    for (const part of parts) {
+      if (!part.startsWith("data: ")) continue;
+      const payload = JSON.parse(part.slice(6));
+      if (payload.content) {
+        fullText += payload.content;
+        textNode.textContent = fullText;
+        chatLog.scrollTop = chatLog.scrollHeight;
+      }
+      if (payload.done && payload.sources && payload.sources.length) {
+        const uniq = dedupSources(payload.sources);
+        const det = document.createElement("details");
+        det.className = "sources";
+        det.innerHTML = `<summary>${uniq.length} 个引用来源</summary>` +
+          uniq.map(s => `<div>[${s.filename} p.${s.page}] ${s.content.slice(0, 120)}...</div>`).join("");
+        textNode.parentElement.appendChild(det);
+      }
+    }
+  }
+}
+
+async function askHarness(question) {
+  const data = await api("/harness/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: question }] }),
+  }, sessionToken);
+  renderToolTrace(data.tool_calls);
+  const last = data.messages[data.messages.length - 1];
+  renderMessage("assistant", last.content);
+}
+</script>
+</body>
+</html>
