@@ -1,0 +1,29 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+*.jsonl
+.ruff_cache/
+.pytest_cache/
+
+# Virtual environments
+.venv
+
+# Environment variables
+.env
+.env.development
+.env.staging
+.env.production
+
+# Misc
+*.ipynb
+
+# Reports
+evals/reports/
+
+# RAG data (uploaded PDFs + Chroma persistence)
+data/
+logs/
