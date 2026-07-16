@@ -15,6 +15,7 @@ from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
 
 from app.core.config import settings
+from app.core.harness.middleware import context_management_middleware, validate_kb_search_results
 from app.core.harness.tools import tools
 from app.services.llm.registry import LLMRegistry
 
@@ -36,6 +37,7 @@ _agent = create_agent(
     tools=tools,
     system_prompt=SYSTEM_PROMPT,
     checkpointer=_checkpointer,
+    middleware=[context_management_middleware, validate_kb_search_results],
 )
 
 
