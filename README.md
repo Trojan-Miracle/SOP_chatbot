@@ -1,8 +1,8 @@
 # SOP Agentic RAG
 
-An internal SOP (Standard Operating Procedure) question-answering system, built to
-practice two architectural paradigms for grounding an LLM in internal knowledge and
-giving it tools:
+An internal SOP (Standard Operating Procedure) question-answering system implementing
+two complementary architectural paradigms for grounding an LLM in internal knowledge
+and giving it tools:
 
 1. **A fixed Agentic RAG graph** (`/chatbot/chat`) — upload SOP documents, ask
    questions, get answers grounded in retrieved excerpts with page-level citations.
@@ -17,7 +17,8 @@ keeping its auth/persistence/observability scaffolding and building both agents 
 
 ## Why two architectures
 
-This project exists to compare them hands-on, not just read about the difference:
+Both are implemented side by side because the right choice depends on what's being
+retrieved, not because one strictly supersedes the other:
 
 |                          | Agentic RAG graph                              | ReAct harness                                    |
 | ------------------------ | ----------------------------------------------- | ------------------------------------------------- |

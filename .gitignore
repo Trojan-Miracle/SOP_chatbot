@@ -27,3 +27,6 @@ evals/reports/
 # RAG data (uploaded PDFs + Chroma persistence)
 data/
 logs/
+
+# Personal study notes, not for the public repo
+INTERVIEW_PREP.md
