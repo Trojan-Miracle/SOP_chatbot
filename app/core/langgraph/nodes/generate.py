@@ -4,7 +4,7 @@ from langgraph.graph import END
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph.state import Command
 
-from app.core.prompts import load_system_prompt
+from app.core.prompts import SYSTEM_PROMPT, build_context_block
 from app.core.rag.context import format_context
 from app.schemas.graph import GraphState
 from app.services.llm import llm_service
@@ -22,12 +22,14 @@ async def generate_node(state: GraphState, config: RunnableConfig) -> Command:
             "不要编造未在资料中出现的步骤。)"
         )
 
-    system_prompt = load_system_prompt(
-        username=username,
-        long_term_memory=state.long_term_memory,
-        sop_context=context,
-    )
-    messages = prepare_messages(state.messages, system_prompt)
+    messages = prepare_messages(state.messages, SYSTEM_PROMPT)
+
+    # Per-turn dynamic content (date, retrieved excerpts, long-term memory) is
+    # appended to the *current* human message rather than folded into the
+    # system prompt, which stays fixed across every call — see
+    # app/core/prompts/__init__.py for why (LLM provider prefix caching).
+    context_block = build_context_block(username=username, long_term_memory=state.long_term_memory, sop_context=context)
+    messages[-1].content = f"{messages[-1].content}\n\n{context_block}"
 
     response_message = await llm_service.call(dump_messages(messages), config=config)
     response_message = process_llm_response(response_message)
