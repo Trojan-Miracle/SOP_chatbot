@@ -67,6 +67,10 @@ class LLMRegistry:
             raise ValueError(f"model '{model_name}' not found in registry. available models: {available}")
 
         if kwargs:
+            # This path bypasses _make_llm(), so its thinking-mode-disabled
+            # default has to be reapplied here too — setdefault so a caller
+            # passing their own extra_body still wins.
+            kwargs.setdefault("extra_body", {"thinking": {"type": "disabled"}})
             logger.debug("creating_llm_with_custom_args", model_name=model_name, custom_args=list(kwargs.keys()))
             return ChatOpenAI(model=model_name, api_key=_API_KEY, base_url=settings.OPENAI_BASE_URL, **kwargs)
 
