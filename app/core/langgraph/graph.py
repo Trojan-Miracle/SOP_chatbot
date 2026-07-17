@@ -1,6 +1,5 @@
 """This file contains the Agentic RAG LangGraph workflow and interactions with the LLM."""
 
-import asyncio
 from typing import (
     AsyncGenerator,
     Optional,
@@ -54,7 +53,7 @@ from app.schemas import (
     RetrievedChunk,
 )
 from app.services.memory import memory_service
-from app.utils import dump_messages, extract_text_content
+from app.utils import dump_messages, extract_text_content, spawn_background_task
 
 PostgresConnPool = AsyncConnectionPool[AsyncConnection[DictRow]]
 
@@ -233,7 +232,7 @@ class LangGraphAgent:
             )
 
             openai_msgs = cast(list[dict], convert_to_openai_messages(response["messages"]))
-            asyncio.create_task(memory_service.add(user_id, openai_msgs, config.get("metadata")))
+            spawn_background_task(memory_service.add(user_id, openai_msgs, config.get("metadata")))
 
             sources = self.__coerce_sources(response.get("sources", []))
             return self.__process_messages(response["messages"]), sources
@@ -293,7 +292,7 @@ class LangGraphAgent:
             state = await graph.aget_state(config)
             if state.values and "messages" in state.values:
                 openai_msgs = cast(list[dict], convert_to_openai_messages(state.values["messages"]))
-                asyncio.create_task(memory_service.add(user_id, openai_msgs, config.get("metadata")))
+                spawn_background_task(memory_service.add(user_id, openai_msgs, config.get("metadata")))
         except GraphInterrupt:
             raise
         except Exception as stream_error:

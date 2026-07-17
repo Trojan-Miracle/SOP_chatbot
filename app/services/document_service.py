@@ -12,6 +12,7 @@ from app.core.rag.splitter import split_markdown, split_pages
 from app.core.rag.vectorstore import get_vectorstore
 from app.models.document import DocumentStatus
 from app.services.database import database_service
+from app.utils import spawn_background_task
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
 
@@ -40,7 +41,7 @@ class DocumentService:
         await asyncio.to_thread(self._write_file, file_path, content)
 
         await database_service.create_document(document_id, filename, file_path)
-        asyncio.create_task(self._ingest(document_id, filename, file_path))
+        spawn_background_task(self._ingest(document_id, filename, file_path))
         return document_id
 
     @staticmethod
