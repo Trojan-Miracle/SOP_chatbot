@@ -212,3 +212,22 @@ help:
         docker-migrate-downgrade docker-migrate-history \
         stack-up stack-down stack-logs \
         clean help
+
+# Lightweight portfolio demo; uses an isolated environment, no API key required.
+demo-install:
+	uv venv .venv-demo
+	uv pip install --python .venv-demo/bin/python -r requirements-demo.txt
+
+demo:
+	.venv-demo/bin/python -m uvicorn app.demo:app --host 127.0.0.1 --port 8000
+
+test:
+	uv run --group test python -m pytest tests -q
+
+eval-workflow:
+	.venv-demo/bin/python -m evals.workflow
+
+eval-retrieval:
+	uv run python -m evals.retrieval
+
+.PHONY: demo-install demo test eval-workflow eval-retrieval

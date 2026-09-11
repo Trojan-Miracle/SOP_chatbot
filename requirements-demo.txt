@@ -1,0 +1,10 @@
+# Small offline demo/test environment; no model weights or external services.
+fastapi==0.135.2
+uvicorn==0.42.0
+pydantic==2.12.5
+aiosqlite==0.22.1
+slowapi==0.1.9
+structlog==25.5.0
+rich==14.3.3
+httpx==0.28.1
+pytest==9.0.2

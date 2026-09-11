@@ -22,7 +22,7 @@ def _make_llm(model: str, temperature: float = settings.DEFAULT_LLM_TEMPERATURE)
         api_key=_API_KEY,
         base_url=settings.OPENAI_BASE_URL,
         temperature=temperature,
-        max_tokens=settings.MAX_TOKENS,
+        max_completion_tokens=settings.MAX_TOKENS,
         # DeepSeek v4 models default to "thinking" mode, which rejects the
         # tool_choice forcing that with_structured_output(method="function_calling")
         # relies on. Non-thinking mode is also faster/cheaper for the

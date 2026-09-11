@@ -21,6 +21,7 @@ import uvicorn
 
 
 def selector_loop_factory() -> asyncio.AbstractEventLoop:
+    """Create the selector loop required by the async PostgreSQL driver."""
     return asyncio.SelectorEventLoop()
 
 

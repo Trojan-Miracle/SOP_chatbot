@@ -82,9 +82,7 @@ class ChatResponse(BaseResponse):
     """
 
     messages: List[Message] = Field(..., description="List of messages in the conversation")
-    sources: List[RetrievedChunk] = Field(
-        default_factory=list, description="SOP chunks cited in the latest answer"
-    )
+    sources: List[RetrievedChunk] = Field(default_factory=list, description="SOP chunks cited in the latest answer")
 
 
 class StreamResponse(BaseResponse):

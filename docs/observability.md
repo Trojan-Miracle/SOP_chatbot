@@ -60,7 +60,7 @@ logger.info("chat_request_received", session_id=session.id, message_count=5)
 
 # Never
 logger.info(f"chat request received for {session.id}")  # no f-strings
-logger.error("something failed", error=str(e))          # use logger.exception for exceptions
+logger.error("something failed", error=str(e))  # use logger.exception for exceptions
 ```
 
 Rules:

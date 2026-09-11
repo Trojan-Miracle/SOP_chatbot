@@ -43,7 +43,7 @@ class BM25Index:
         result = collection.get(include=["documents", "metadatas"])
         self._ids = result["ids"]
         self._texts = result["documents"] or []
-        self._metadatas = result["metadatas"] or []
+        self._metadatas = [dict(metadata) for metadata in (result["metadatas"] or [])]
 
         if not self._texts:
             self._bm25 = None

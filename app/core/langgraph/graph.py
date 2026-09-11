@@ -277,19 +277,25 @@ class LangGraphAgent:
                 "sources": [],
             }
 
-            async for token, _ in graph.astream(
+            emitted = False
+            async for token, metadata in graph.astream(
                 graph_input,
                 config,
                 stream_mode="messages",
             ):
+                if not isinstance(metadata, dict) or metadata.get("langgraph_node") != "generate":
+                    continue
                 if not isinstance(token, (AIMessage, AIMessageChunk)):
                     continue
 
                 text = extract_text_content(token.content)
                 if text:
+                    emitted = True
                     yield text
 
             state = await graph.aget_state(config)
+            if not emitted and state.values.get("messages"):
+                yield extract_text_content(state.values["messages"][-1].content)
             if state.values and "messages" in state.values:
                 openai_msgs = cast(list[dict], convert_to_openai_messages(state.values["messages"]))
                 spawn_background_task(memory_service.add(user_id, openai_msgs, config.get("metadata")))

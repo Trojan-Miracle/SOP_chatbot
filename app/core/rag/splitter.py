@@ -65,7 +65,9 @@ def split_markdown(text: str, *, document_id: str, filename: str) -> list[Docume
     sections = _markdown_header_splitter.split_text(text)
     chunks: list[Document] = []
     for section_idx, section in enumerate(sections):
-        heading = " > ".join(section.metadata.get(level, "") for _, level in _MARKDOWN_HEADERS if level in section.metadata)
+        heading = " > ".join(
+            section.metadata.get(level, "") for _, level in _MARKDOWN_HEADERS if level in section.metadata
+        )
         sub_chunks = _splitter.split_text(section.page_content) or [section.page_content]
         for i, chunk_text in enumerate(sub_chunks):
             chunk_id = f"{document_id}:{section_idx}:{i}"

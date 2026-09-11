@@ -30,3 +30,4 @@ logs/
 
 # Personal study notes, not for the public repo
 INTERVIEW_PREP.md
+.venv-demo/

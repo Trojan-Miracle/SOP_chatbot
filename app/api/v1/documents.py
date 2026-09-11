@@ -57,7 +57,11 @@ async def upload_document(
     try:
         document_id = await document_service.upload(file.filename, content)
         document = await database_service.get_document(document_id)
-        logger.info("document_upload_accepted", document_id=document_id, filename=file.filename, user_id=session.user_id)
+        if document is None:
+            raise RuntimeError("uploaded document record not found")
+        logger.info(
+            "document_upload_accepted", document_id=document_id, filename=file.filename, user_id=session.user_id
+        )
         return DocumentResponse(
             document_id=document.id,
             filename=document.filename,

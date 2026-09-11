@@ -1,7 +1,9 @@
 """This file contains the graph utilities for the application."""
 
+from collections.abc import Sequence
+
 import tiktoken
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, convert_to_openai_messages
 from langchain_core.messages import trim_messages as _trim_messages
 
 from app.core.config import settings
@@ -39,7 +41,7 @@ def _count_tokens_tiktoken(messages: list) -> int:
     return num_tokens
 
 
-def dump_messages(messages: list[Message]) -> list[dict]:
+def dump_messages(messages: Sequence[Message | BaseMessage]) -> list[dict]:
     """Dump the messages to a list of dictionaries.
 
     Args:
@@ -48,7 +50,10 @@ def dump_messages(messages: list[Message]) -> list[dict]:
     Returns:
         list[dict]: The dumped messages.
     """
-    return [message.model_dump() for message in messages]
+    return [
+        convert_to_openai_messages(message) if isinstance(message, BaseMessage) else message.model_dump()
+        for message in messages
+    ]
 
 
 def extract_text_content(content: str | list) -> str:
@@ -102,7 +107,7 @@ def process_llm_response(response: BaseMessage) -> BaseMessage:
     return response
 
 
-def prepare_messages(messages: list[Message], system_prompt: str) -> list[Message]:
+def prepare_messages(messages: Sequence[Message | BaseMessage], system_prompt: str) -> list[Message | BaseMessage]:
     """Prepare the messages for the LLM.
 
     Args:
@@ -131,7 +136,7 @@ def prepare_messages(messages: list[Message], system_prompt: str) -> list[Messag
                 message_count=len(messages),
             )
             # Skip trimming and return all messages
-            trimmed_messages = messages
+            trimmed_messages = list(messages)
         else:
             raise
 

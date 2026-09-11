@@ -79,7 +79,7 @@ from app.schemas.my_schema import MySchema
 
 result: MySchema = await llm_service.call(
     messages,
-    model_name="gpt-5.4-nano",   # optional — uses current default if omitted
+    model_name="gpt-5.4-nano",  # optional — uses current default if omitted
     response_format=MySchema,
     temperature=0.2,
 )
@@ -91,14 +91,16 @@ The service chains `.with_structured_output(schema)` on the resolved model and r
 
 ```python
 # app/services/llm/registry.py — LLMRegistry.LLMS
-{
-    "name": "gpt-5.4",
-    "llm": ChatOpenAI(
-        model="gpt-5.4",
-        api_key=settings.OPENAI_API_KEY,
-        max_tokens=settings.MAX_TOKENS,
-    ),
-},
+(
+    {
+        "name": "gpt-5.4",
+        "llm": ChatOpenAI(
+            model="gpt-5.4",
+            api_key=settings.OPENAI_API_KEY,
+            max_tokens=settings.MAX_TOKENS,
+        ),
+    },
+)
 ```
 
 Add it at any position in the list. The fallback order follows the list order.

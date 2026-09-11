@@ -6,6 +6,8 @@ from fastapi import (
     HTTPException,
     Request,
 )
+from langchain.agents.middleware.types import InputAgentState
+from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import (
     AIMessage,
     ToolMessage,
@@ -51,7 +53,7 @@ async def harness_chat(
     """
     try:
         agent = get_harness_agent()
-        config = {"configurable": {"thread_id": session.id}}
+        config: RunnableConfig = {"configurable": {"thread_id": session.id}}
 
         # MemorySaver accumulates the full conversation across turns — capture
         # the message count beforehand so tool_calls only reports what this
@@ -59,7 +61,8 @@ async def harness_chat(
         prior_state = await agent.aget_state(config)
         prior_count = len(prior_state.values.get("messages", [])) if prior_state.values else 0
 
-        result = await agent.ainvoke({"messages": dump_messages(chat_request.messages)}, config=config)
+        agent_input: InputAgentState = {"messages": [message for message in dump_messages(chat_request.messages)]}
+        result = await agent.ainvoke(agent_input, config=config)
 
         raw_messages = result["messages"]
         new_messages = raw_messages[prior_count:]
@@ -73,7 +76,7 @@ async def harness_chat(
                         ToolCallTrace(
                             tool=tc["name"],
                             args=tc["args"],
-                            result=str(tool_results_by_id.get(tc["id"], "")),
+                            result=str(tool_results_by_id.get(tc.get("id") or "", "")),
                         )
                     )
 

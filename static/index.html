@@ -45,7 +45,8 @@
 </head>
 <body>
 
-<h1>SOP Agentic RAG — 测试面板</h1>
+<h1>SOP Copilot — 知识库与问答</h1>
+<p><a href="/ui/incidents.html">打开事件处理工作台 →</a></p>
 <div id="error"></div>
 
 <section id="authSection">
@@ -151,6 +152,7 @@ async function afterAuth(token) {
   userToken = token;
   const session = await api("/auth/session", { method: "POST" }, userToken);
   sessionToken = session.token.access_token;
+  sessionStorage.setItem("sop-session-token", sessionToken);
   document.getElementById("authSection").classList.add("hidden");
   document.getElementById("appSection").classList.remove("hidden");
   refreshDocs();

@@ -1,0 +1,44 @@
+{
+  "mode": "deterministic_fixture",
+  "measures": "workflow_contracts_not_model_quality",
+  "passed": 6,
+  "total": 6,
+  "cases": [
+    {
+      "case": "缺少位置先追问",
+      "expected": "needs_info",
+      "actual": "needs_info",
+      "passed": true
+    },
+    {
+      "case": "空输入不调用规划",
+      "expected": "needs_info",
+      "actual": "needs_info",
+      "passed": true
+    },
+    {
+      "case": "打印机登记方案",
+      "expected": "awaiting_approval",
+      "actual": "awaiting_approval",
+      "passed": true
+    },
+    {
+      "case": "扫码器登记方案",
+      "expected": "awaiting_approval",
+      "actual": "awaiting_approval",
+      "passed": true
+    },
+    {
+      "case": "未知设备阻止规划",
+      "expected": "blocked",
+      "actual": "blocked",
+      "passed": true
+    },
+    {
+      "case": "不适用现象阻止规划",
+      "expected": "blocked",
+      "actual": "blocked",
+      "passed": true
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+[
+  {"query":"LP-200 卡纸", "relevant":["printer-jam.md"]},
+  {"query":"LP-200 卡纸需要登记哪些信息？", "relevant":["printer-jam.md"]},
+  {"query":"标签打印机卡纸由谁处理？", "relevant":["printer-jam.md"]},
+  {"query":"SOP-PRINT-001 可以自行拆卸吗？", "relevant":["printer-jam.md"]},
+  {"query":"打印机卡纸没有照片怎么办？", "relevant":["printer-jam.md"]},
+  {"query":"SC-100 离线", "relevant":["scanner-offline.md"]},
+  {"query":"扫码器无法联网应该联系谁？", "relevant":["scanner-offline.md"]},
+  {"query":"SOP-SCAN-002 需要附上什么？", "relevant":["scanner-offline.md"]},
+  {"query":"扫码器离线可以修改网络配置吗？", "relevant":["scanner-offline.md"]},
+  {"query":"扫码器离线截图缺失怎么登记？", "relevant":["scanner-offline.md"]},
+  {"query":"公司年假有多少天？", "relevant":[]},
+  {"query":"反应釜温度超过多少度应该停机？", "relevant":[]}
+]

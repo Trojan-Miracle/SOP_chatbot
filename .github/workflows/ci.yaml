@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [master]
+    branches: [main, master]
 
 jobs:
   checks:
@@ -17,3 +17,17 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pyright
+      - run: uv run python -m pytest tests -q
+      - run: uv run python -m evals.workflow
+
+  offline-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - run: uv venv .venv-demo
+      - run: uv pip install --python .venv-demo/bin/python -r requirements-demo.txt
+      - run: .venv-demo/bin/python -m pytest tests/test_incidents.py tests/test_research.py -q
+      - run: .venv-demo/bin/python -m evals.workflow

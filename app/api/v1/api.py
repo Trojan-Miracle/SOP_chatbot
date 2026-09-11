@@ -10,9 +10,11 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.chatbot import router as chatbot_router
 from app.api.v1.documents import router as documents_router
 from app.api.v1.harness import router as harness_router
+from app.api.v1.incidents import router as incidents_router
 from app.core.logging import logger
 
 api_router = APIRouter()
+api_router.include_router(incidents_router, prefix="/incidents", tags=["Incidents"])
 
 # Include routers
 api_router.include_router(auth_router, prefix="/auth", tags=["Auth"])
