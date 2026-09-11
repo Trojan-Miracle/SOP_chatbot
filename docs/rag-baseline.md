@@ -63,7 +63,7 @@ Optional `document_ids` filter restricts retrieval to specific uploaded document
 Built with `langchain.agents.create_agent` (the current, non-deprecated agent
 factory — `langgraph.prebuilt.create_react_agent` is now the older path). Tools:
 
-- `search_knowledge_base` — the same Chroma collection as the RAG graph, but called
+- `search_knowledge_base` — the same vector/BM25/RRF retrieval service as the RAG graph, but called
   at the model's discretion instead of on every turn.
 - `get_current_time` — a genuine external API call (timeapi.io), not a
   `datetime.now()` wrapper, with a local fallback if the API is unreachable.

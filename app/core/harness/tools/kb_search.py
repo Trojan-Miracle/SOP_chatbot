@@ -1,4 +1,4 @@
-"""Knowledge-base search tool — the same vector store, exposed as a callable tool.
+"""Knowledge-base tool using the same hybrid retrieval service as the other workflows.
 
 This is the deliberate contrast with the ``app/core/langgraph`` graph: there,
 retrieval is a fixed node every query always passes through. Here, the model
@@ -9,8 +9,8 @@ single turn.
 
 from langchain_core.tools import tool
 
-from app.core.config import settings
-from app.core.rag.vectorstore import get_vectorstore
+from app.core.rag.context import format_context
+from app.core.rag.retrieval import search_sop
 
 
 @tool
@@ -29,12 +29,7 @@ async def search_knowledge_base(query: str) -> str:
         The top matching excerpts with their source filename and page, or a
         message saying nothing was found.
     """
-    vectorstore = get_vectorstore()
-    hits = await vectorstore.asimilarity_search_with_score(query, k=settings.RAG_TOP_K)
+    hits = await search_sop(query)
     if not hits:
         return "No matching SOP content found for this query."
-
-    return "\n\n".join(
-        f"[来源: {doc.metadata.get('filename', 'unknown')}, 第{doc.metadata.get('page', '?')}页]\n{doc.page_content}"
-        for doc, _score in hits
-    )
+    return format_context(hits)

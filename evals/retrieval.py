@@ -5,15 +5,13 @@ import asyncio
 import json
 from pathlib import Path
 from time import perf_counter
-from typing import cast
 
 from rich.console import Console
 from rich.table import Table
 
 from app.core.config import settings
 from app.core.rag.bm25_index import get_bm25_index
-from app.core.langgraph.nodes.retrieve import retrieve_node
-from app.schemas.graph import GraphState, RetrievedChunk
+from app.core.rag.retrieval import search_sop
 
 
 async def evaluate(cases_path: Path, output: Path) -> None:
@@ -33,8 +31,7 @@ async def evaluate(cases_path: Path, output: Path) -> None:
             rows = []
             for case in cases:
                 start = perf_counter()
-                result = await retrieve_node(GraphState(query=case["query"]))
-                chunks = cast(dict[str, list[RetrievedChunk]], result.update)["retrieved_docs"]
+                chunks = await search_sop(case["query"])
                 names = [chunk.filename for chunk in chunks]
                 relevant = set(case["relevant"])
                 hits = relevant.intersection(names)

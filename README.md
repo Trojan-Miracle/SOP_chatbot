@@ -16,7 +16,7 @@ SOP Copilot 将内部操作文档转化为可检索的知识库，支持带来�
 
 | 任务调查 | 证据决策 | 可验证实现 |
 | --- | --- | --- |
-| 拆解子问题，跟踪证据覆盖 | 区分继续搜索、追问事实与停止 | 36 项回归测试通过 |
+| 拆解子问题，跟踪证据覆盖 | 区分继续搜索、追问事实与停止 | 41 项回归测试通过 |
 | 根据缺口检索被引用的其他 SOP | 冲突来源保留双方原文，转交人工 | 8 个跨文档、条件与冲突评测案例 |
 | 累积与去重证据，限制调查预算 | 生成后独立核对逐步骤语义支持 | 单次检索 vs 自适应调查对照脚本 |
 
@@ -27,14 +27,14 @@ SOP Copilot 将内部操作文档转化为可检索的知识库，支持带来�
 
 ## 系统架构
 
-三条执行路径分别承担业务流程、知识问答和工具调用实验：
+项目采用两类控制方式：**固定 Agentic RAG**，以及 **ReAct 风格的模型驱动循环**。后者分别实现为通用工具调用 Harness 和面向 SOP 的专用调查 Harness，因此代码提供三个业务入口，而非三种互斥的 Agent 范式。
 
 ```mermaid
 flowchart TB
     UI["事件工作台 / 问答界面"] --> API["FastAPI · JWT 会话认证"]
 
     subgraph Workflows[执行路径]
-        INCIDENT["事件调查：子问题 → 搜索 / 追问 / 冲突 → 验证"]
+        INCIDENT["专用调查 Harness：子问题 → 搜索 / 追问 / 冲突 → 验证"]
         RAG["Agentic RAG：retrieve → grade → rewrite / generate"]
         REACT["ReAct Harness：模型选择工具与调用顺序"]
     end
@@ -44,7 +44,8 @@ flowchart TB
     API --> REACT
     INCIDENT --> HYBRID["共享检索实现：bge-m3 / Chroma + BM25 → RRF"]
     RAG --> HYBRID
-    REACT --> TOOLS["知识库向量搜索 / 时间查询 / 代码读取"]
+    TOOLS --> HYBRID
+    REACT --> TOOLS["知识库混合检索 / 时间查询 / 代码读取"]
     INCIDENT --> REVIEW["保存方案与依据快照 → 人工审批"]
     REVIEW --> STORE["版本检查 + 数据库事务 → 模拟工单"]
 
@@ -58,11 +59,11 @@ flowchart TB
 | **知识问答** `/chatbot/chat` | LangGraph 固定检索流程，资料不足时有界改写，最终回答或拒答 | PostgreSQL Checkpointer 保存对话状态 |
 | **工具调用实验** `/harness/chat` | `create_agent` 自主选择工具；中间件提供检索结果反馈和历史摘要 | MemorySaver，当前不跨重启恢复 |
 
-事件调查器复用 RAG 的**混合检索节点**，由独立的 `ResearchAgent` 控制多轮调查、子问题覆盖与方案验证；它不经过问答图的 grade/rewrite 循环。ReAct 知识库工具目前使用独立的向量搜索路径。三种控制方式的边界在代码中保持明确。
+三条路径共用 `search_sop` **混合检索服务**，使用相同的候选数量、向量距离阈值、BM25 与 RRF 配置。固定图决定何时检索，ReAct 由模型选择是否调用检索工具，`ResearchAgent` 根据证据缺口继续查询；调查器不经过问答图的 grade/rewrite 循环。统一检索后端可以减少编排方式对照中的检索差异，但不代表三条路径的提示词、调用预算或评审机制也完全一致。
 
 ## 技术实现
 
-### 1. 自适应调查：针对证据缺口决定下一步
+### 1. 专用调查 Harness：针对证据缺口决定下一步
 
 真实事件入口已接入 `ResearchAgent`。先把事件拆成最多四个需要依据的子问题，再根据累计证据选择动作：
 
@@ -104,7 +105,7 @@ RRF(d) = Σ 1 / (k + rank_r(d))
 
 默认每路取 15 个候选，融合后返回 Top-5，RRF 的平滑常数为 60；参数均可配置。向量阈值只作用于向量候选，下游仍需判断资料是否足以支持回答。
 
-源码：[检索节点](app/core/langgraph/nodes/retrieve.py) · [RRF](app/core/rag/fusion.py) · [结构化分块](app/core/rag/splitter.py)
+源码：[共享检索服务](app/core/rag/retrieval.py) · [图节点](app/core/langgraph/nodes/retrieve.py) · [RRF](app/core/rag/fusion.py) · [结构化分块](app/core/rag/splitter.py)
 
 ### 3. 有界问答：资料不足时改写，耗尽预算后拒答
 
@@ -165,11 +166,12 @@ Pydantic 校验输出结构，服务端继续检查引用 ID 是否存在、引�
 
 ## 测试与评测
 
-**已验证：36 项回归测试通过，Pyright 零错误 / 零警告，Ruff lint 与格式检查通过。** 浏览器验证覆盖追问、方案审阅、审批、刷新恢复和移动端布局。详见[验证记录](docs/validation.md)。
+**已验证：41 项回归测试通过，Pyright 零错误 / 零警告，Ruff lint 与格式检查通过。** 浏览器验证覆盖追问、方案审阅、审批、刷新恢复和移动端布局。详见[验证记录](docs/validation.md)。
 
 | 验证层 | 覆盖内容 | 当前证据 |
 | --- | --- | --- |
 | 调查策略 | 跨文档缺口、覆盖伪造、语义不支持、冲突引文、重复搜索、预算、超时与追问恢复 | [17 项调查测试](tests/test_research.py)，脚本化模型接口 |
+| 共享检索 | 三路径排序与来源一致、空结果、文档过滤、向量对照模式、改写与 Top-k | [5 项检索回归](tests/test_shared_retrieval.py) |
 | 流程与 API | 缺失信息、伪造引用、上游失败、用户隔离、拒绝、并发审批、过期版本、恢复 | [14 项流程测试](tests/test_incidents.py) |
 | RAG 回归 | 无依据拒答、内部流过滤、直接拒答流、消息序列化与正常生成 | [5 项 RAG 测试](tests/test_rag_safety.py)，模型调用使用替身 |
 | 离线场景 | 两组已知事件、信息缺失与无适用 SOP | [6 / 6 流程报告](docs/workflow-report.json)，固定规则适配器 |
