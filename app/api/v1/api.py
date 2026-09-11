@@ -9,7 +9,6 @@ from fastapi import APIRouter
 from app.api.v1.auth import router as auth_router
 from app.api.v1.chatbot import router as chatbot_router
 from app.api.v1.documents import router as documents_router
-from app.api.v1.harness import router as harness_router
 from app.api.v1.incidents import router as incidents_router
 from app.core.logging import logger
 
@@ -20,7 +19,6 @@ api_router.include_router(incidents_router, prefix="/incidents", tags=["Incident
 api_router.include_router(auth_router, prefix="/auth", tags=["Auth"])
 api_router.include_router(chatbot_router, prefix="/chatbot", tags=["Chatbot"])
 api_router.include_router(documents_router, prefix="/documents", tags=["Documents"])
-api_router.include_router(harness_router, prefix="/harness", tags=["Harness"])
 
 
 @api_router.get("/health")

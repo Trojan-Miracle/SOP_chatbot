@@ -7,11 +7,9 @@ import pytest
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage
 
-from app.core.harness.tools.kb_search import search_knowledge_base
 from app.core.incidents.live import LivePlanner
 from app.core.langgraph.nodes.retrieve import retrieve_node
 from app.core.rag import retrieval
-from app.core.rag.context import format_context
 from app.schemas.graph import GraphState
 
 
@@ -47,23 +45,21 @@ def backends(monkeypatch):
 
 
 def test_all_paths_share_ranking_and_sources(backends):
-    """ReAct must gain BM25-only hits and match graph/investigation ordering."""
+    """The graph and investigation share BM25-only hits and ranking."""
 
     async def scenario():
         query = "SC-100 离线"
         expected = await retrieval.search_sop(query)
         graph = await retrieve_node(GraphState(messages=[HumanMessage(content=query)]))
-        tool = await search_knowledge_base.ainvoke({"query": query})
         investigation = await LivePlanner("test-user").search(query)
         assert [c.filename for c in expected] == ["b.md", "a.md", "c.md"]
         assert graph.update["retrieved_docs"] == expected
         assert graph.update["query"] == query and graph.goto == "grade"
-        assert tool == format_context(expected)
         assert [(c.filename, c.page, c.content) for c in investigation] == [
             (c.filename, c.page, c.content) for c in expected
         ]
         vector, bm25 = backends
-        assert vector.asimilarity_search_with_score.await_count == bm25.top_n.call_count == 4
+        assert vector.asimilarity_search_with_score.await_count == bm25.top_n.call_count == 3
         for call in vector.asimilarity_search_with_score.call_args_list:
             assert call.args == (query,) and call.kwargs == {"k": 15, "filter": None}
 
@@ -80,10 +76,6 @@ def test_empty_results_across_paths(backends):
         assert await retrieval.search_sop("没有依据") == []
         assert (await retrieve_node(GraphState(query="没有依据"))).update["retrieved_docs"] == []
         assert await LivePlanner("test-user").search("没有依据") == []
-        assert (
-            await search_knowledge_base.ainvoke({"query": "没有依据"})
-            == "No matching SOP content found for this query."
-        )
 
     asyncio.run(scenario())
 
@@ -104,7 +96,8 @@ def test_vector_only_ablation_is_shared(backends, monkeypatch):
     async def scenario():
         expected = await retrieval.search_sop("测试")
         assert [c.filename for c in expected] == ["a.md", "b.md"]
-        assert await search_knowledge_base.ainvoke({"query": "测试"}) == format_context(expected)
+        assert (await retrieve_node(GraphState(query="测试"))).update["retrieved_docs"] == expected
+        assert [c.filename for c in await LivePlanner("test-user").search("测试")] == ["a.md", "b.md"]
         backends[1].top_n.assert_not_called()
 
     asyncio.run(scenario())

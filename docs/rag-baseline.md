@@ -1,40 +1,6 @@
-> 本文保留原 RAG / ReAct 架构说明。当前新增事件闭环见 [项目首页](../README.md)；RAG 资料不足时已改为明确拒答。
+# 固定 Agentic RAG 问答
 
-# SOP Agentic RAG
-
-An internal SOP (Standard Operating Procedure) question-answering system implementing
-two complementary architectural paradigms for grounding an LLM in internal knowledge
-and giving it tools:
-
-1. **A fixed Agentic RAG graph** (`/chatbot/chat`) — upload SOP documents, ask
-   questions, get answers grounded in retrieved excerpts with page-level citations.
-   Every question always goes through the same retrieve → grade → generate pipeline.
-2. **A lightweight ReAct tool-calling harness** (`/harness/chat`) — the same
-   underlying knowledge base, but exposed as one tool among several (knowledge-base
-   search, current time via a real external API, sandboxed codebase read/grep). The
-   model decides for itself whether and which tools a question needs.
-
-Adapted from [fastapi-langgraph-agent-production-ready-template](https://github.com/wassim249/fastapi-langgraph-agent-production-ready-template),
-keeping its auth/persistence/observability scaffolding and building both agents on top.
-
-## Why two architectures
-
-Both are implemented side by side because the right choice depends on what's being
-retrieved, not because one strictly supersedes the other:
-
-|                          | Agentic RAG graph                              | ReAct harness                                    |
-| ------------------------ | ----------------------------------------------- | ------------------------------------------------- |
-| Control flow             | Fixed pipeline, same steps every query           | Model decides which tools to call, if any          |
-| Retrieval                | Always runs, with a grade/rewrite quality loop   | One tool among several — only called if the model decides it's needed |
-| Best fit                 | High-stakes domain where every answer must be grounded and auditable | General-purpose assistant needing several capabilities (docs, time, code, ...) |
-| This project's analogue  | `app/core/langgraph/`                             | `app/core/harness/`                                |
-
-Coding agents (Claude Code, Devin, etc.) lean on the harness side for code — grep/read
-tools give exact-match recall that beats semantic retrieval for symbols and file
-paths — while document QA still benefits from the graph side's mandatory
-grade-before-answer discipline. Both patterns are useful; which one fits depends on
-what's being retrieved and how much control flow needs to be guaranteed versus
-delegated to the model.
+本文说明知识问答路径（`/chatbot/chat`）的检索、编排与部署。每次问题都经过 retrieve → grade，再根据资料充分性生成答案或改写查询；预算耗尽且资料仍不足时明确拒答。面向事件处理的专用调查流程见[项目首页](../README.md)。
 
 ## Architecture — Agentic RAG graph
 
@@ -58,23 +24,6 @@ retrieve -> grade -> generate            (sufficient context)
 Optional `document_ids` filter restricts retrieval to specific uploaded documents
 (useful once you have more than one SOP loaded).
 
-## Architecture — ReAct harness
-
-Built with `langchain.agents.create_agent` (the current, non-deprecated agent
-factory — `langgraph.prebuilt.create_react_agent` is now the older path). Tools:
-
-- `search_knowledge_base` — the same vector/BM25/RRF retrieval service as the RAG graph, but called
-  at the model's discretion instead of on every turn.
-- `get_current_time` — a genuine external API call (timeapi.io), not a
-  `datetime.now()` wrapper, with a local fallback if the API is unreachable.
-- `read_project_file` / `grep_project_files` — read-only codebase exploration,
-  sandboxed to the project root (path-traversal checked — this is a real security
-  boundary since it's exposed over a network-facing API, not a hypothetical one).
-
-Uses `MemorySaver` rather than the RAG graph's Postgres checkpointer — a deliberate
-simplification for this secondary demo path (session history doesn't survive a
-restart), documented rather than silently swept under the rug.
-
 ## Multi-format documents & structured chunking
 
 PDF, DOCX, TXT, and Markdown are all supported (`app/core/rag/loader.py`,
@@ -89,7 +38,6 @@ directly, e.g. via `unstructured`, to recover section boundaries the same way.)
 ## Stack
 
 - **LangGraph** — the fixed RAG graph, checkpointed to Postgres
-- **`langchain.agents.create_agent`** — the ReAct harness orchestrator
 - **FastAPI** — REST API, JWT auth (reused from the base template)
 - **PostgreSQL** — chat history (LangGraph checkpointer), document metadata, mem0 long-term memory
 - **Redis/Valkey** — rate-limiter storage backend
@@ -107,11 +55,10 @@ directly, e.g. via `unstructured`, to recover section boundaries the same way.)
 | POST   | `/api/v1/chatbot/chat`     | Ask a question (Agentic RAG graph)                    |
 | POST   | `/api/v1/chatbot/chat/stream` | Same, streamed via SSE                             |
 | GET    | `/api/v1/chatbot/history`  | Get the session's chat history                        |
-| POST   | `/api/v1/harness/chat`     | Ask a question (ReAct tool-calling harness)           |
 
 All routes (except `/health`) require a JWT session — see `/api/v1/auth/register`,
 `/api/v1/auth/login`, `/api/v1/auth/session`. A minimal test UI covering the whole
-flow (login → upload → ask, both architectures side by side) is served at `/ui`.
+flow (login → upload → ask) is served at `/ui`.
 
 ## Setup
 

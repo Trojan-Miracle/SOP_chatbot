@@ -27,7 +27,7 @@ SOP Copilot 将内部操作文档转化为可检索的知识库，支持带来�
 
 ## 系统架构
 
-项目采用两类控制方式：**固定 Agentic RAG**，以及 **ReAct 风格的模型驱动循环**。后者分别实现为通用工具调用 Harness 和面向 SOP 的专用调查 Harness，因此代码提供三个业务入口，而非三种互斥的 Agent 范式。
+项目保留两条面向 SOP 的执行路径：**固定 Agentic RAG** 用于知识问答，**ReAct 风格的专用调查 Harness** 用于事件处理。前者按预定义图检索、评估和改写；后者根据累计证据与缺口决定下一步调查动作。
 
 ```mermaid
 flowchart TB
@@ -36,16 +36,12 @@ flowchart TB
     subgraph Workflows[执行路径]
         INCIDENT["专用调查 Harness：子问题 → 搜索 / 追问 / 冲突 → 验证"]
         RAG["Agentic RAG：retrieve → grade → rewrite / generate"]
-        REACT["ReAct Harness：模型选择工具与调用顺序"]
     end
 
     API --> INCIDENT
     API --> RAG
-    API --> REACT
     INCIDENT --> HYBRID["共享检索实现：bge-m3 / Chroma + BM25 → RRF"]
     RAG --> HYBRID
-    TOOLS --> HYBRID
-    REACT --> TOOLS["知识库混合检索 / 时间查询 / 代码读取"]
     INCIDENT --> REVIEW["保存方案与依据快照 → 人工审批"]
     REVIEW --> STORE["版本检查 + 数据库事务 → 模拟工单"]
 
@@ -57,9 +53,8 @@ flowchart TB
 | --- | --- | --- |
 | **事件处理** `/incidents` | 模型拆解任务并选择调查动作；控制器约束预算、覆盖和证据；独立 API 审批 | 异步 SQLite 保存事实、方案、依据、决定与模拟工单 |
 | **知识问答** `/chatbot/chat` | LangGraph 固定检索流程，资料不足时有界改写，最终回答或拒答 | PostgreSQL Checkpointer 保存对话状态 |
-| **工具调用实验** `/harness/chat` | `create_agent` 自主选择工具；中间件提供检索结果反馈和历史摘要 | MemorySaver，当前不跨重启恢复 |
 
-三条路径共用 `search_sop` **混合检索服务**，使用相同的候选数量、向量距离阈值、BM25 与 RRF 配置。固定图决定何时检索，ReAct 由模型选择是否调用检索工具，`ResearchAgent` 根据证据缺口继续查询；调查器不经过问答图的 grade/rewrite 循环。统一检索后端可以减少编排方式对照中的检索差异，但不代表三条路径的提示词、调用预算或评审机制也完全一致。
+两条路径共用 `search_sop` **混合检索服务**，使用相同的候选数量、向量距离阈值、BM25 与 RRF 配置。固定图决定何时检索，`ResearchAgent` 根据证据缺口继续查询，调查器不经过问答图的 grade/rewrite 循环。共享检索后端让编排方式的对照更清晰，但两条路径的提示词、调用预算和评审机制仍各自独立。
 
 ## 技术实现
 
@@ -228,13 +223,13 @@ uv run alembic upgrade head
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-打开 `/ui/`，注册/登录，上传 `examples/sops/` 中两份 Markdown，等待处理完成后进入事件工作台。体验跨文档与冲突调查时，上传 `examples/research/sops/` 中全部文件，按[难例清单](examples/research/cases.json)填入事件事实与补充信息。首次启动需要下载 bge-m3 模型。配置与既有问答接口见 [RAG / ReAct 文档](docs/rag-baseline.md)。两种模式创建的均为本地模拟工单。
+打开 `/ui/`，注册/登录，上传 `examples/sops/` 中两份 Markdown，等待处理完成后进入事件工作台。体验跨文档与冲突调查时，上传 `examples/research/sops/` 中全部文件，按[难例清单](examples/research/cases.json)填入事件事实与补充信息。首次启动需要下载 bge-m3 模型。配置与既有问答接口见 [固定 RAG 文档](docs/rag-baseline.md)。两种模式创建的均为本地模拟工单。
 
 ## 技术栈与代码导航
 
 | 模块 | 技术与实现 | 入口 |
 | --- | --- | --- |
-| 编排与模型 | LangGraph、LangChain、DeepSeek 兼容接口、Pydantic、tenacity | [问答图](app/core/langgraph/) / [ReAct](app/core/harness/) / [LLM 服务](app/services/llm/) |
+| 编排与模型 | LangGraph、LangChain、DeepSeek 兼容接口、Pydantic、tenacity | [问答图](app/core/langgraph/) / [专用调查](app/core/incidents/research.py) / [LLM 服务](app/services/llm/) |
 | 文档与检索 | 多格式解析、标题分块、bge-m3、Chroma、BM25、RRF | [RAG 组件](app/core/rag/) |
 | 业务流程 | Planner 协议、显式状态机、结构化方案、版本化审批 | [事件核心](app/core/incidents/) |
 | 状态存储 | PostgreSQL 对话检查点；aiosqlite 事件与模拟工单快照 | [问答持久化](app/core/langgraph/graph.py) / [事件存储](app/core/incidents/store.py) |
@@ -249,6 +244,6 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 ## 来源与许可
 
-项目基于 [fastapi-langgraph-agent-production-ready-template](https://github.com/wassim249/fastapi-langgraph-agent-production-ready-template)，复用认证、基础数据库、监控及部分 LLM 基础设施；在此基础上扩展 SOP 检索与问答、工具调用实验，以及版本化事件审批闭环。遵循 [MIT License](LICENSE)，保留原始来源与版权说明。
+项目基于 [fastapi-langgraph-agent-production-ready-template](https://github.com/wassim249/fastapi-langgraph-agent-production-ready-template)，复用认证、基础数据库、监控及部分 LLM 基础设施；在此基础上扩展 SOP 混合检索与问答、自适应证据调查，以及版本化事件审批闭环。遵循 [MIT License](LICENSE)，保留原始来源与版权说明。
 
 新增调查界面用明确的脚本化接口数据验证了查询轨迹、调用统计、语义支持判定、追问编辑锁定审批及移动布局；此浏览器检查不代表真实模型已经通过难例。

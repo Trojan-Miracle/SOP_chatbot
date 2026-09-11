@@ -18,9 +18,6 @@
   .row > * { flex: 1; }
   .hidden { display: none !important; }
 
-  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
-  .tab { flex: 1; text-align: center; padding: 10px; border-radius: 6px; background: #8882; cursor: pointer; user-select: none; }
-  .tab.active { background: #2563eb; color: white; }
 
   #docList { list-style: none; padding: 0; font-size: 0.9rem; }
   #docList li { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #8882; }
@@ -35,9 +32,6 @@
   .msg.assistant { align-self: flex-start; background: #8884; }
   .sources { font-size: 0.8rem; opacity: 0.75; margin-top: 6px; }
   .sources details { margin-top: 4px; }
-  .tool-trace { font-size: 0.8rem; opacity: 0.8; margin-bottom: 6px; }
-  .tool-trace .tool-badge { display: inline-block; background: #7c3aed22; border: 1px solid #7c3aed55; border-radius: 4px; padding: 1px 6px; margin-right: 4px; font-family: ui-monospace, monospace; }
-  .tool-trace details { margin-top: 2px; }
 
   #status { font-size: 0.85rem; opacity: 0.7; min-height: 1.2em; }
   #error { color: #dc2626; font-size: 0.85rem; min-height: 1.2em; }
@@ -61,10 +55,7 @@
 </section>
 
 <section id="appSection" class="hidden">
-  <div class="tabs">
-    <div class="tab active" id="tabRag" onclick="switchMode('rag')">SOP RAG（固定检索流程）</div>
-    <div class="tab" id="tabHarness" onclick="switchMode('harness')">Tool Harness（模型自主调用工具）</div>
-  </div>
+  <h2>SOP 问答 · 固定检索流程</h2>
 
   <div id="ragSection">
     <h2>上传 SOP 文档（PDF / DOCX / TXT / MD）</h2>
@@ -78,13 +69,6 @@
     <p style="font-size:0.8rem; opacity:0.7">勾选文档可限定只在这些文档里检索；都不勾选=检索全部。</p>
   </div>
 
-  <div id="harnessSection" class="hidden">
-    <p style="font-size:0.85rem; opacity:0.75">
-      这个模式下模型自己决定要不要调用工具、调用哪个——知识库检索（同一份数据）、查当前时间（真实外部API调用）、
-      读/搜这个项目自己的代码（沙箱限制在项目目录内，只读）。可以直接问"现在几点"、"反应釜清洁用什么试剂"、
-      "app/main.py 里有几个中间件"对比着试。
-    </p>
-  </div>
 
   <h2 style="margin-top:24px">提问</h2>
   <div id="chatLog"></div>
@@ -97,7 +81,6 @@
 <script>
 const API = "/api/v1";
 let userToken = null, sessionToken = null;
-let mode = "rag";
 
 function showError(msg) { document.getElementById("error").textContent = msg || ""; }
 
@@ -108,16 +91,6 @@ async function api(path, opts = {}, token) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail ? JSON.stringify(data.detail) : res.statusText);
   return data;
-}
-
-function switchMode(m) {
-  mode = m;
-  document.getElementById("tabRag").classList.toggle("active", m === "rag");
-  document.getElementById("tabHarness").classList.toggle("active", m === "harness");
-  document.getElementById("ragSection").classList.toggle("hidden", m !== "rag");
-  document.getElementById("harnessSection").classList.toggle("hidden", m !== "harness");
-  document.getElementById("chatLog").innerHTML = "";
-  if (m === "rag") loadHistory();
 }
 
 async function register() {
@@ -245,20 +218,6 @@ function renderMessage(role, content, sources) {
   return textNode;
 }
 
-function renderToolTrace(toolCalls) {
-  if (!toolCalls || !toolCalls.length) return;
-  const log = document.getElementById("chatLog");
-  const div = document.createElement("div");
-  div.className = "tool-trace";
-  div.innerHTML = toolCalls.map(tc => {
-    const argsStr = JSON.stringify(tc.args);
-    return `<details><summary><span class="tool-badge">${tc.tool}</span>${argsStr}</summary>` +
-      `<div style="margin-top:4px; opacity:0.8">${(tc.result || "").slice(0, 300)}</div></details>`;
-  }).join("");
-  log.appendChild(div);
-  log.scrollTop = log.scrollHeight;
-}
-
 async function loadHistory() {
   try {
     const data = await api("/chatbot/history", {}, sessionToken);
@@ -278,8 +237,7 @@ async function ask() {
   const askBtn = document.getElementById("askBtn");
   askBtn.disabled = true;
   try {
-    if (mode === "rag") await askRagStreaming(question);
-    else await askHarness(question);
+    await askRagStreaming(question);
   } catch (e) {
     showError("提问失败: " + e.message);
   } finally {
@@ -335,16 +293,6 @@ async function askRagStreaming(question) {
   }
 }
 
-async function askHarness(question) {
-  const data = await api("/harness/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: [{ role: "user", content: question }] }),
-  }, sessionToken);
-  renderToolTrace(data.tool_calls);
-  const last = data.messages[data.messages.length - 1];
-  renderMessage("assistant", last.content);
-}
 </script>
 </body>
 </html>

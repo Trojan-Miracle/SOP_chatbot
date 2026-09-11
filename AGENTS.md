@@ -25,11 +25,11 @@ make stack-up ENV=development  # Full stack: API + DB + Prometheus + Grafana
 
 ```
 app/
-  api/v1/          # Route handlers (auth.py, chatbot.py, documents.py, harness.py, api.py)
+  api/v1/          # Route handlers (auth.py, chatbot.py, documents.py, incidents.py, api.py)
   core/
     config.py        # Settings (plain os.getenv, see config.py)
     langgraph/        # Agentic RAG graph: nodes/{retrieve,grade,rewrite,generate}.py
-    harness/           # Parallel ReAct tool-calling agent + tools/
+    incidents/         # SOP investigation agent, evidence validation, approval and storage
     rag/               # Loaders, splitters, embeddings, vectorstore, BM25 index, fusion
     logging.py        # structlog setup
     limiter.py         # Rate limiting (slowapi)
@@ -47,10 +47,10 @@ scripts/           # Environment setup, Docker build scripts
 
 ## Project Overview
 
-An Agentic RAG SOP question-answering agent, plus a parallel lightweight
-tool-calling ReAct harness, built with:
+A fixed Agentic RAG SOP question-answering workflow and a specialized
+SOP investigation harness, built with:
 - **LangGraph** for the fixed retrieve→grade→rewrite→generate RAG workflow
-- **`langchain.agents.create_agent`** for the parallel ReAct harness (tool-calling paradigm)
+- **ResearchAgent** for evidence-driven investigation with structured actions and program-enforced gates
 - **FastAPI** for high-performance async REST API endpoints
 - **DeepSeek** (OpenAI-compatible API) as the LLM backend
 - **ChromaDB + BM25** hybrid retrieval, **sentence-transformers (bge-m3)** embeddings
